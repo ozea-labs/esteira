@@ -1,3 +1,0 @@
-# Chave AWS falsa (formato de exemplo) que o gate/selftest.sh usava como literal no primeiro commit do PR #1.
-# O teste agora monta a chave em tempo de execução; este é só o commit antigo, que o squash merge não leva para a main.
-66a09c19e5a8bf1e7b16766f0e9252d3a21df362:gate/selftest.sh:aws-access-token:75
