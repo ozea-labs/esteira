@@ -45,7 +45,12 @@ do_build() {
 do_smoke() {
   [ -f "$archive" ] || fail "não há $archive; rode o build antes"
   step "Smoke da imagem"
-  docker load -i "$archive"
+  # O Docker do runner não carrega arquivo OCI; o skopeo converte o MESMO arquivo para docker-archive
+  # (mesmas camadas e mesma config, então o mesmo image ID), sem rebuild.
+  rm -f "$out/docker.tar"
+  docker run --rm -v "$(cd "$out" && pwd):/work" "$SKOPEO_IMAGE" \
+    copy --quiet "oci-archive:/work/image.tar" "docker-archive:/work/docker.tar:$candidate"
+  docker load -i "$out/docker.tar"
   if [ -n "${IMAGE_SMOKE:-}" ]; then
     bash "$IMAGE_SMOKE" "$candidate"
   else

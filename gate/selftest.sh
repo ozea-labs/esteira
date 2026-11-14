@@ -72,7 +72,8 @@ git init -q "$tmp/leak" && (
   git config core.autocrlf false
   cd "$tmp/leak"
   git config user.email t@example.invalid && git config user.name t
-  printf 'aws_secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYzEXAMPLEKEYx"\naws_access_key_id = "AKIAQWERTYUIOPASDFGH"\n' > creds.ini
+  # A chave é montada em tempo de execução para o próprio fonte da esteira não conter um segredo detectável.
+  printf 'aws_access_key_id = "%s%s"\n' "AKIA" "QWERTYUIOPASDFGH" > creds.ini
   git add creds.ini && git commit -qm leak
 )
 expect_fail "segredo no histórico (Gitleaks)" "leaks found" docker run --rm -v "$tmp/leak:/repo:ro" "$GITLEAKS_IMAGE" detect --source /repo --redact
