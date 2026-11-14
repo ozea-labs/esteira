@@ -273,7 +273,8 @@ function parseArgs(argv) {
 
 function annotate(level, { rule, path, message }) {
   const where = path ? ` file=${path}` : '';
-  if (process.env.GITHUB_ACTIONS === 'true') console.log(`::${level}${where}::${rule}: ${message}`);
+  // O runner consome o `file=` da anotação; o caminho vai também no texto, para o log e para quem lê o PR.
+  if (process.env.GITHUB_ACTIONS === 'true') console.log(`::${level}${where}::${rule}${path ? ` ${path}` : ''}: ${message}`);
   else console.log(`${level === 'error' ? 'ERRO' : 'aviso'} ${rule}${path ? ` ${path}` : ''}: ${message}`);
 }
 
