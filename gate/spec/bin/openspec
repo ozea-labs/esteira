@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# OpenSpec CLI fixado pela esteira (OPS-67, movido no OPS-88). A versão mora em gate/spec/openspec/package.json.
+# Instalação: npm ci --ignore-scripts --no-audit --no-fund --prefix <esteira>/gate/spec/openspec
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+bin="$here/openspec/node_modules/.bin/openspec"
+if [ ! -x "$bin" ]; then
+  echo "openspec não está instalado. Rode: npm ci --ignore-scripts --no-audit --no-fund --prefix $here/openspec" >&2
+  exit 2
+fi
+export OPENSPEC_TELEMETRY="${OPENSPEC_TELEMETRY:-0}"
+exec "$bin" "$@"

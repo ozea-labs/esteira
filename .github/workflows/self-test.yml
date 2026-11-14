@@ -1,0 +1,74 @@
+name: self-test
+
+# A esteira testa a si mesma: roda o php-app.yml contra fixtures/php-app (consumidor de exemplo),
+# os testes dos checks de spec, e a suíte de casos envenenados, que o portão precisa reprovar.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: self-test-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  gate:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/php-app.yml
+    with:
+      esteira-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+      config-file: fixtures/php-app/esteira.env
+      working-directory: fixtures/php-app
+
+  spec-unit:
+    name: spec-unit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22"
+      - name: OpenSpec fixado
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefix gate/spec/openspec
+      - name: Testes dos checks de spec
+        run: node --test 'gate/spec/test/*.test.mjs'
+
+  poisoned:
+    name: poisoned
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - name: Casos envenenados
+        run: bash gate/selftest.sh
+
+  self-test-ok:
+    name: self-test-ok
+    needs: [gate, spec-unit, poisoned]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Tudo verde
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          bad="$(jq -r 'to_entries[] | select(.value.result != "success") | "\(.key)=\(.value.result)"' <<<"$NEEDS")"
+          if [ -n "$bad" ]; then echo "::error::$bad"; exit 1; fi
+          echo "gate, spec-unit e poisoned verdes"

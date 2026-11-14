@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="CLI Arguments" tests="5" assertions="4" errors="0" failures="2" skipped="1" time="0.009720">
+    <testsuite name="App\Tests\Acceptance\Probe\ProbeTest" file="/repo/tests/Acceptance/Probe/ProbeTest.php" tests="5" assertions="4" errors="0" failures="2" skipped="1" time="0.009720">
+      <testcase name="passes" file="/repo/tests/Acceptance/Probe/ProbeTest.php" line="16" class="App\Tests\Acceptance\Probe\ProbeTest" classname="App.Tests.Acceptance.Probe.ProbeTest" assertions="1" time="0.002232"/>
+      <testcase name="fails" file="/repo/tests/Acceptance/Probe/ProbeTest.php" line="23" class="App\Tests\Acceptance\Probe\ProbeTest" classname="App.Tests.Acceptance.Probe.ProbeTest" assertions="1" time="0.004169">
+        <failure type="PHPUnit\Framework\ExpectationFailedException">App\Tests\Acceptance\Probe\ProbeTest::fails
+Failed asserting that 2 is identical to 1.
+
+/repo/tests/Acceptance/Probe/ProbeTest.php:25</failure>
+      </testcase>
+      <testcase name="skips" file="/repo/tests/Acceptance/Probe/ProbeTest.php" line="30" class="App\Tests\Acceptance\Probe\ProbeTest" classname="App.Tests.Acceptance.Probe.ProbeTest" assertions="0" time="0.001733">
+        <skipped/>
+      </testcase>
+      <testsuite name="App\Tests\Acceptance\Probe\ProbeTest::provided" tests="2" assertions="2" errors="0" failures="1" skipped="0" time="0.001586">
+        <testcase name="provided with data set #0" file="/repo/tests/Acceptance/Probe/ProbeTest.php" line="45" class="App\Tests\Acceptance\Probe\ProbeTest" classname="App.Tests.Acceptance.Probe.ProbeTest" assertions="1" time="0.000973"/>
+        <testcase name="provided with data set #1" file="/repo/tests/Acceptance/Probe/ProbeTest.php" line="45" class="App\Tests\Acceptance\Probe\ProbeTest" classname="App.Tests.Acceptance.Probe.ProbeTest" assertions="1" time="0.000613">
+          <failure type="PHPUnit\Framework\ExpectationFailedException">App\Tests\Acceptance\Probe\ProbeTest::provided with data set #1
+Failed asserting that 2 is identical to 1.
+
+/repo/tests/Acceptance/Probe/ProbeTest.php:47</failure>
+        </testcase>
+      </testsuite>
+    </testsuite>
+  </testsuite>
+</testsuites>

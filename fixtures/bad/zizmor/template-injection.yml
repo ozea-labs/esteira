@@ -1,0 +1,10 @@
+name: bad-template-injection
+on:
+  issues:
+    types: [opened]
+permissions: {}
+jobs:
+  x:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo "${{ github.event.issue.title }}"

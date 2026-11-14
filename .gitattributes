@@ -1,0 +1,4 @@
+* text=auto eol=lf
+*.sh text eol=lf
+# O tarball que o make gate dos consumidores baixa não precisa das fixtures do self-test.
+/fixtures/ export-ignore
