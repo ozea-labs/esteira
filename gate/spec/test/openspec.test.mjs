@@ -57,3 +57,19 @@ test('AC4: strict validation fails a requirement without scenario', () => {
   assert.equal(r.status, 1);
   assert.equal(JSON.parse(r.stdout).summary.totals.failed, 1);
 });
+
+test('spec-config: as regras da configuração do consumidor chegam às instruções', async () => {
+  const { configCheck } = await import('../config-check.mjs');
+  const root = tempDir();
+  writeFiles(root, validFiles());
+  copyFileSync(join(FIXTURES, 'openspec-config.yaml'), join(root, 'openspec/config.yaml'));
+  assert.deepEqual(configCheck({ root, openspec: OPENSPEC }), []);
+});
+
+test('spec-config: falha quando o OpenSpec ignora as regras da configuração', async () => {
+  const { configCheck } = await import('../config-check.mjs');
+  const root = tempDir();
+  writeFiles(root, validFiles({ 'openspec/config.yaml': 'schema: spec-driven\ncontext: |\n  Demo.\nrules:\n  proposal: "deveria ser uma lista"\n' }));
+  const codes = configCheck({ root, openspec: OPENSPEC }).map((v) => v.code);
+  assert.ok(codes.includes('CONFIG_WARNING') || codes.includes('CONFIG_RULES_DROPPED'), `códigos: ${codes.join(', ')}`);
+});

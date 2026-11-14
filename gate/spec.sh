@@ -36,6 +36,10 @@ if [ -n "${PHP_DB_PREPARE:-}" ]; then
   endstep
 fi
 
+step "Regras do openspec/config.yaml chegam às instruções"
+node "$ESTEIRA_DIR/gate/spec/config-check.mjs" --root . --openspec "$openspec"
+endstep
+
 step "Validate, lint, integridade e conformidade"
 node "$ESTEIRA_DIR/gate/spec/check.mjs" --root . --base "$base" --head HEAD \
   --openspec "$openspec" \
