@@ -1,0 +1,33 @@
+# Caminhos do portão (OPS-65). Um PR de produto não muda estes arquivos.
+#
+# Esta lista é a fonte única de duas camadas:
+#   - o check `integrity` da esteira (gate/checks/gate-integrity.mjs);
+#   - a regra de push "restrict file paths" dos rulesets (github/apply-rulesets.sh injeta a lista).
+#
+# Sintaxe fnmatch, como a do GitHub: `*` não atravessa `/`; `**` atravessa.
+# Mudança legítima num destes caminhos passa pela liberação autorizada (docs/runbooks/liberar-portao.md).
+
+# Arquivo de chamada da esteira, configuração dela, lockfile e Dependabot
+.github/**
+
+# Configuração dos agentes
+CLAUDE.md
+**/CLAUDE.md
+AGENTS.md
+**/AGENTS.md
+.claude/**
+.agents/**
+.codex/**
+
+# Limiares, baselines e configuração de scanner
+phpstan*.neon*
+.php-cs-fixer*.php
+phpunit*.xml*
+.gitleaks.toml
+.semgrepignore
+.trivyignore
+openspec/config.yaml
+
+# Scripts que o portão executa a partir do consumidor (smoke e suíte de ponta a ponta)
+scripts/quality/**
+Makefile

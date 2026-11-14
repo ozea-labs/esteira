@@ -8,7 +8,7 @@ config="${1:?uso: run.sh <arquivo de configuração> [etapas...]}"; shift
 load_config "$config"
 stages=("$@")
 if [ "${#stages[@]}" -eq 0 ]; then
-  stages=(security php)
+  stages=(security integrity php)
   [ "$SPEC_ENABLED" = "true" ] && stages+=(spec)
   [ -n "${IMAGE_TARGET:-}" ] && stages+=(image)
 fi
@@ -25,6 +25,7 @@ ESTEIRA_SHA="$(basename "$ESTEIRA_DIR")"
 for stage in "${stages[@]}"; do
   case "$stage" in
     security) (cd "$root" && bash "$ESTEIRA_DIR/gate/security.sh" "$(realpath "$config")") ;;
+    integrity) $runner bash "$rel_esteira/gate/integrity.sh" "$(git merge-base origin/main HEAD 2>/dev/null || echo HEAD)" HEAD ;;
     php)      $runner bash "$rel_esteira/gate/php.sh" "$rel_config" ;;
     spec)     $runner bash "$rel_esteira/gate/spec.sh" "$rel_config" "$(git merge-base origin/main HEAD 2>/dev/null || echo HEAD)" ;;
     image)    bash "$ESTEIRA_DIR/gate/image.sh" "$config" all ;;

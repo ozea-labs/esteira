@@ -101,5 +101,40 @@ expect_fail "digest trocado" "mas o portão escaneou" env REGISTRY_USER=x REGIST
   bash gate/publish.sh "$tmp/pub/image.tar" ghcr.io/ozea-labs/x "sha256:$(printf '%064d' 2)" "$(printf '%040d' 0)"
 endstep
 
+step "Integridade do portão (OPS-65): PRs envenenados contra o consumidor de exemplo"
+# consumer <nome>: repositório git com fixtures/php-app, um arquivo de chamada e uma baseline, na branch main.
+consumer() {
+  local dir="$tmp/integrity/$1"
+  mkdir -p "$dir" && cp -r fixtures/php-app/. "$dir/"
+  mkdir -p "$dir/.github/workflows"
+  printf 'name: gate\non: [pull_request]\npermissions: {}\njobs:\n  gate:\n    uses: ozea-labs/esteira/.github/workflows/php-app.yml@%s # v0.1.0\n' \
+    "$(printf '1%.0s' {1..40})" > "$dir/.github/workflows/gate.yml"
+  printf "parameters:\n\tignoreErrors:\n\t\t-\n\t\t\tmessage: '#x#'\n\t\t\tcount: 1\n\t\t\tpath: src/Greeter.php\n" > "$dir/phpstan-baseline.neon"
+  (cd "$dir" && git init -q -b main && git config core.autocrlf false && git config user.email t@example.invalid && git config user.name t \
+    && git config commit.gpgsign false && git add -A && git commit -qm base && git checkout -qb pr)
+  echo "$dir"
+}
+# poisoned <nome> <padrão esperado> <mutação em shell, roda dentro do consumidor>
+poisoned() {
+  local name="$1" pattern="$2" mutation="$3" dir
+  dir="$(consumer "$name")"
+  (cd "$dir" && bash -c "$mutation" && git add -A && git commit -qm "$name")
+  expect_fail "integridade: $name" "$pattern" node gate/checks/gate-integrity.mjs --root "$dir" --base main --head pr
+}
+poisoned "limiar afrouxado" "PROTECTED_PATH.*phpstan.neon" "sed -i 's/level: 8/level: 1/' phpstan.neon"
+poisoned "teste apagado" "TEST_REMOVED" "sed -i '/testFallsBackToWorld/,/^    }/d' tests/GreeterTest.php"
+poisoned "baseline aumentada" "BASELINE_GROWN" "sed -i 's/count: 1/count: 9/' phpstan-baseline.neon"
+poisoned "workflow esvaziado" "PROTECTED_PATH.*gate.yml" "printf 'name: gate\non: [pull_request]\npermissions: {}\njobs: {}\n' > .github/workflows/gate.yml"
+poisoned "teste pulado" "TEST_SKIPPED" "sed -i \"s/self::assertSame('Olá, Ana!'/self::markTestSkipped('x'); self::assertSame('Olá, Ana!'/\" tests/GreeterTest.php"
+poisoned "supressão nova" "SUPPRESSION_ADDED" "sed -i 's|^final class|/** @phpstan-ignore-next-line */\nfinal class|' src/Greeter.php"
+
+released="$(consumer liberado)"
+(cd "$released" && sed -i 's/level: 8/level: 9/' phpstan.neon && git commit -qam limiar)
+head_sha="$(git -C "$released" rev-parse pr)"
+expect_pass "integridade: commit liberado pelo dono passa" node gate/checks/gate-integrity.mjs --root "$released" --base main --head pr --released-sha "$head_sha"
+expect_fail "integridade: SHA liberado não vale para outro commit" "PROTECTED_PATH" node gate/checks/gate-integrity.mjs --root "$released" --base main --head pr \
+  --released-sha "$(printf 'f%.0s' {1..40})"
+endstep
+
 echo "selftest: $passed caso(s) conforme o esperado, $failed fora do esperado"
 [ "$failed" -eq 0 ]

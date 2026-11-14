@@ -1,0 +1,14 @@
+{
+  "name": "portao-do-agente",
+  "target": "push",
+  "enforcement": "active",
+  "bypass_actors": [
+    { "actor_id": 29110, "actor_type": "Integration", "bypass_mode": "always" }
+  ],
+  "rules": [
+    {
+      "type": "file_path_restriction",
+      "parameters": { "restricted_file_paths": "@protected-paths" }
+    }
+  ]
+}

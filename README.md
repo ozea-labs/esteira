@@ -8,11 +8,15 @@ daqui fixados por SHA e mantém só a configuração própria.
 
 | Caminho | O que faz |
 |---|---|
-| `.github/workflows/php-app.yml` | Portão de uma aplicação PHP: `config`, `security`, `php`, `spec`, `image` e o agregador `ci-ok` |
+| `.github/workflows/php-app.yml` | Portão de uma aplicação PHP: `config`, `security`, `integrity`, `php`, `spec`, `image` e o agregador `ci-ok` |
 | `.github/workflows/publish.yml` | Publica no GHCR o arquivo OCI que o `php-app.yml` construiu e escaneou, e confere o digest |
 | `gate/*.sh` | Os passos do portão. O CI e o `make gate` rodam os mesmos scripts |
 | `gate/versions.env` | Ferramentas fixadas por digest (actionlint, zizmor, Gitleaks, Semgrep, OSV, Hadolint, Trivy, skopeo) |
 | `gate/spec/` | Checks de spec do OpenSpec (OPS-67) e o OpenSpec fixado |
+| `gate/protected-paths.txt` | Caminhos do portão que um PR de produto não muda (OPS-65). Fonte do check `integrity` e da regra de push |
+| `gate/checks/gate-integrity.mjs` | Check `integrity`: o PR não afrouxa o portão que o julga |
+| `github/` | Rulesets versionados por repositório, `apply-rulesets.sh` e `liberar-portao.sh` (liberação autorizada) |
+| `docs/runbooks/liberar-portao.md` | Como um agente libera, com autorização do dono, uma mudança legítima no portão |
 | `Makefile.include` | Alvo `gate` para o Makefile do consumidor |
 | `fixtures/` | Consumidor de exemplo e casos envenenados do self-test (fora do tarball) |
 
@@ -22,6 +26,11 @@ daqui fixados por SHA e mantém só a configuração própria.
   de 40 caracteres, `permissions` no topo, nenhum `continue-on-error`, nenhum `pull_request_target`, esteira chamada
   por um só SHA); actionlint; zizmor bloqueante; `actions.lock` verificado (`gh actions-lock --verify`); Gitleaks;
   Semgrep `p/ci`; OSV.
+- **integrity** (só em PR de consumidor): reprova o PR que toca um caminho de `gate/protected-paths.txt`, tem menos
+  métodos de teste que a base, adiciona teste pulado ou supressão (`@phpstan-ignore`, `nosemgrep`, `gitleaks:allow`
+  e afins), muda os `scripts` do `composer.json` ou aumenta uma baseline. Exceções fora do alcance do PR: o
+  Dependabot trocando só linhas `uses:` e o `actions.lock`, e o commit liberado pelo dono na variável
+  `PORTAO_LIBERADO_SHA` ([runbook](docs/runbooks/liberar-portao.md)).
 - **php**: `composer validate --strict`, `composer audit`, estilo, análise estática, banco de teste, PHPUnit com
   cobertura. Postgres de serviço quando `POSTGRES_VERSION` existe.
 - **spec** (quando `SPEC_ENABLED=true`): OpenSpec fixado, skills sem edição manual, regras do `openspec/config.yaml`
