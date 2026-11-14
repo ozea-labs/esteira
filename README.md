@@ -24,7 +24,8 @@ daqui fixados por SHA e mantém só a configuração própria.
   Semgrep `p/ci`; OSV.
 - **php**: `composer validate --strict`, `composer audit`, estilo, análise estática, banco de teste, PHPUnit com
   cobertura. Postgres de serviço quando `POSTGRES_VERSION` existe.
-- **spec** (quando `SPEC_ENABLED=true`): OpenSpec fixado, skills sem edição manual, `validate --strict`, lint da Ozea,
+- **spec** (quando `SPEC_ENABLED=true`): OpenSpec fixado, skills sem edição manual, regras do `openspec/config.yaml`
+  do consumidor chegando às instruções, `validate --strict`, lint da Ozea,
   integridade e conformidade da change entregue no PR.
 - **image** (quando `IMAGE_TARGET` existe): Hadolint; **um build** do stage em arquivo OCI; smoke do consumidor;
   Trivy (CRITICAL/HIGH com correção bloqueiam) e SBOM, sobre o mesmo arquivo.
@@ -53,23 +54,25 @@ jobs:
   gate:
     permissions:
       contents: read
-    uses: ozea-labs/esteira/.github/workflows/php-app.yml@<sha> # v0.1.0
-    with:
-      esteira-sha: <sha>
+    uses: ozea-labs/esteira/.github/workflows/php-app.yml@<sha> # v0.1.2
   publish:
     needs: gate
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
       packages: write
-    uses: ozea-labs/esteira/.github/workflows/publish.yml@<sha> # v0.1.0
+    uses: ozea-labs/esteira/.github/workflows/publish.yml@<sha> # v0.1.2
     with:
-      esteira-sha: <sha>
       image-name: ${{ needs.gate.outputs.image-name }}
       image-digest: ${{ needs.gate.outputs.image-digest }}
 ```
 
-Check exigido na `main`: `gate / ci-ok`. O `esteira-sha` precisa ser igual ao SHA da linha `uses:`; o portão confere.
+Check exigido na `main`: `gate / ci-ok`. A esteira descobre o próprio SHA lendo a linha `uses:` do arquivo de
+chamada, então a atualização só troca essa linha (é o que o Dependabot faz). A política exige que todas as chamadas
+da esteira usem o mesmo SHA.
+
+O `concurrency` só cancela run de PR. Na branch padrão cada commit roda e publica a própria `sha-<40>`; a tag `main`
+só avança se o commit ainda for a cabeça da branch quando o `publish` roda.
 
 `.github/esteira.env` (lido sem `source`; só as chaves conhecidas são aceitas):
 
@@ -102,6 +105,11 @@ gh actions-lock --no-narrow
 ```
 
 `--no-narrow` mantém o SHA na linha `uses:` (com o comentário de versão) e registra o mesmo SHA no lockfile.
+
+Limite: o `gh-actions-lock` v0.4.1 não trava chamadas de workflow reutilizável entre repositórios
+(`jobs.<id>.uses`); a entrada do arquivo de chamada no lockfile fica vazia. Essas chamadas são protegidas pelo SHA
+de 40 caracteres na linha `uses:` (política de workflows e "Require SHA pinning") e as actions de dentro da esteira
+pelo `actions.lock` deste repositório.
 O repositório liga "Require actions to be pinned to a full-length commit SHA" e "Require lockfile".
 
 ### make gate

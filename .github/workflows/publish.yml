@@ -11,7 +11,6 @@ name: esteira-publish
 #       packages: write
 #     uses: ozea-labs/esteira/.github/workflows/publish.yml@<sha> # vX.Y.Z
 #     with:
-#       esteira-sha: <o mesmo sha>
 #       image-name: ${{ needs.gate.outputs.image-name }}
 #       image-digest: ${{ needs.gate.outputs.image-digest }}
 
@@ -19,8 +18,10 @@ on:
   workflow_call:
     inputs:
       esteira-sha:
-        required: true
+        description: Só para testes da esteira. O consumidor omite; o SHA vem da linha `uses:` do arquivo de chamada.
+        required: false
         type: string
+        default: ""
       image-name:
         required: true
         type: string
@@ -39,11 +40,37 @@ jobs:
       contents: read
       packages: write
     steps:
+      - name: Arquivo de chamada
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          path: app
+          sparse-checkout: .github/workflows
+          persist-credentials: false
+      - name: SHA da esteira e cabeça da branch
+        id: ctx
+        env:
+          INPUT_SHA: ${{ inputs.esteira-sha }}
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          sha="$INPUT_SHA"
+          if [ -z "$sha" ]; then
+            caller="${GITHUB_WORKFLOW_REF#"$GITHUB_REPOSITORY"/}"; caller="${caller%@*}"
+            sha="$(sed -nE 's|.*ozea-labs/esteira/\.github/workflows/publish\.yml@([0-9a-f]{40}).*|\1|p' "app/$caller" | head -1)"
+          fi
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::não achei o SHA da esteira (uses: ozea-labs/esteira/.github/workflows/publish.yml@<sha de 40 caracteres>)"; exit 1; }
+          echo "esteira-sha=$sha" >> "$GITHUB_OUTPUT"
+          # Runs da main correm em paralelo (um por commit). A tag `main` só avança se este commit ainda é a cabeça.
+          head="$(gh api "repos/$GITHUB_REPOSITORY/commits/$DEFAULT_BRANCH" --jq .sha)"
+          if [ "$head" = "$GITHUB_SHA" ]; then echo "move-main=true" >> "$GITHUB_OUTPUT"; else
+            echo "::notice::$GITHUB_SHA não é mais a cabeça de $DEFAULT_BRANCH ($head): publica sha-<40> e sha-<7>, sem mover main"
+            echo "move-main=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Esteira
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: ozea-labs/esteira
-          ref: ${{ inputs.esteira-sha }}
+          ref: ${{ steps.ctx.outputs.esteira-sha }}
           path: esteira
           persist-credentials: false
       - name: Arquivo da imagem escaneada
@@ -55,6 +82,7 @@ jobs:
         env:
           IMAGE_NAME: ${{ inputs.image-name }}
           IMAGE_DIGEST: ${{ inputs.image-digest }}
+          MOVE_MAIN: ${{ steps.ctx.outputs.move-main }}
           REGISTRY_USER: ${{ github.actor }}
           REGISTRY_PASSWORD: ${{ github.token }}
-        run: bash esteira/gate/publish.sh image/image.tar "$IMAGE_NAME" "$IMAGE_DIGEST" "$GITHUB_SHA"
+        run: bash esteira/gate/publish.sh image/image.tar "$IMAGE_NAME" "$IMAGE_DIGEST" "$GITHUB_SHA" "$MOVE_MAIN"

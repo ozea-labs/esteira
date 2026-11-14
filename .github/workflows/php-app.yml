@@ -8,16 +8,17 @@ name: esteira-php-app
 #       permissions:
 #         contents: read
 #       uses: ozea-labs/esteira/.github/workflows/php-app.yml@<sha> # vX.Y.Z
-#       with:
-#         esteira-sha: <o mesmo sha>
+#
+# O SHA da esteira vem da própria linha `uses:` do arquivo de chamada: o Dependabot só troca essa linha.
 
 on:
   workflow_call:
     inputs:
       esteira-sha:
-        description: SHA da esteira; precisa ser o mesmo da linha `uses:` (o portão confere).
-        required: true
+        description: Só para o self-test da esteira. O consumidor omite; o SHA vem da linha `uses:` do arquivo de chamada.
+        required: false
         type: string
+        default: ""
       config-file:
         description: Configuração do consumidor, relativa à raiz do repositório.
         required: false
@@ -42,7 +43,6 @@ on:
 permissions: {}
 
 env:
-  ESTEIRA_SHA: ${{ inputs.esteira-sha }}
   CONFIG_FILE: ${{ inputs.config-file }}
 
 jobs:
@@ -53,6 +53,7 @@ jobs:
     permissions:
       contents: read
     outputs:
+      esteira-sha: ${{ steps.sha.outputs.esteira-sha }}
       php-version: ${{ steps.cfg.outputs.php-version }}
       php-extensions: ${{ steps.cfg.outputs.php-extensions }}
       php-coverage: ${{ steps.cfg.outputs.php-coverage }}
@@ -62,24 +63,36 @@ jobs:
       has-image: ${{ steps.cfg.outputs.has-image }}
       image-name: ${{ steps.cfg.outputs.image-name }}
     steps:
-      - name: Esteira
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          repository: ozea-labs/esteira
-          ref: ${{ inputs.esteira-sha }}
-          path: .esteira
-          persist-credentials: false
       - name: Consumidor
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           path: app
           persist-credentials: false
+      - name: SHA da esteira (da linha `uses:` do arquivo de chamada)
+        id: sha
+        env:
+          INPUT_SHA: ${{ inputs.esteira-sha }}
+        run: |
+          sha="$INPUT_SHA"
+          if [ -z "$sha" ]; then
+            caller="${GITHUB_WORKFLOW_REF#"$GITHUB_REPOSITORY"/}"; caller="${caller%@*}"
+            sha="$(sed -nE 's|.*ozea-labs/esteira/\.github/workflows/php-app\.yml@([0-9a-f]{40}).*|\1|p' "app/$caller" | head -1)"
+            echo "arquivo de chamada: $caller"
+          fi
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::não achei o SHA da esteira (uses: ozea-labs/esteira/.github/workflows/php-app.yml@<sha de 40 caracteres>)"; exit 1; }
+          echo "esteira: $sha"
+          echo "esteira-sha=$sha" >> "$GITHUB_OUTPUT"
+      - name: Esteira
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: ozea-labs/esteira
+          ref: ${{ steps.sha.outputs.esteira-sha }}
+          path: .esteira
+          persist-credentials: false
       - name: Lê a configuração
         id: cfg
         working-directory: app
-        run: |
-          [[ "$ESTEIRA_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::esteira-sha precisa ser um SHA de 40 caracteres"; exit 1; }
-          bash ../.esteira/gate/config.sh "$CONFIG_FILE"
+        run: bash ../.esteira/gate/config.sh "$CONFIG_FILE"
 
   security:
     name: security
@@ -98,7 +111,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: ozea-labs/esteira
-          ref: ${{ inputs.esteira-sha }}
+          ref: ${{ needs.config.outputs.esteira-sha }}
           path: .esteira
           persist-credentials: false
       - name: Tira a esteira do workspace
@@ -113,6 +126,7 @@ jobs:
       - name: Portão de segurança
         env:
           GH_TOKEN: ${{ github.token }}
+          ESTEIRA_SHA: ${{ needs.config.outputs.esteira-sha }}
         run: bash "$RUNNER_TEMP/esteira/gate/security.sh" "$CONFIG_FILE"
 
   php:
@@ -151,7 +165,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: ozea-labs/esteira
-          ref: ${{ inputs.esteira-sha }}
+          ref: ${{ needs.config.outputs.esteira-sha }}
           path: .esteira
           persist-credentials: false
       - name: Tira a esteira do workspace
@@ -221,7 +235,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: ozea-labs/esteira
-          ref: ${{ inputs.esteira-sha }}
+          ref: ${{ needs.config.outputs.esteira-sha }}
           path: .esteira
           persist-credentials: false
       - name: Tira a esteira do workspace
@@ -282,7 +296,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: ozea-labs/esteira
-          ref: ${{ inputs.esteira-sha }}
+          ref: ${{ needs.config.outputs.esteira-sha }}
           path: .esteira
           persist-credentials: false
       - name: Tira a esteira do workspace
