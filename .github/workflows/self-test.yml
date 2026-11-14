@@ -39,8 +39,8 @@ jobs:
           node-version: "22"
       - name: OpenSpec fixado
         run: npm ci --ignore-scripts --no-audit --no-fund --prefix gate/spec/openspec
-      - name: Testes dos checks de spec
-        run: node --test 'gate/spec/test/*.test.mjs'
+      - name: Testes dos checks de spec e de integridade
+        run: node --test 'gate/spec/test/*.test.mjs' 'gate/checks/test/*.test.mjs'
 
   poisoned:
     name: poisoned
@@ -54,6 +54,10 @@ jobs:
           persist-credentials: false
       - name: Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - name: Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22"
       - name: Casos envenenados
         run: bash gate/selftest.sh
 

@@ -129,6 +129,44 @@ jobs:
           ESTEIRA_SHA: ${{ needs.config.outputs.esteira-sha }}
         run: bash "$RUNNER_TEMP/esteira/gate/security.sh" "$CONFIG_FILE"
 
+  integrity:
+    name: integrity
+    needs: config
+    # Só em PR de consumidor. A própria esteira muda caminhos do portão por definição e se prova pelo self-test.
+    if: github.event_name == 'pull_request' && github.repository != 'ozea-labs/esteira'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Consumidor (head do PR, histórico completo)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Esteira
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: ozea-labs/esteira
+          ref: ${{ needs.config.outputs.esteira-sha }}
+          path: .esteira
+          persist-credentials: false
+      - name: Tira a esteira do workspace
+        run: mv .esteira "$RUNNER_TEMP/esteira"
+      - name: Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22"
+      - name: Portão de integridade
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          # Variável do repositório consumidor. Só administrador grava; nenhum app de agente tem a permissão.
+          PORTAO_LIBERADO_SHA: ${{ vars.PORTAO_LIBERADO_SHA }}
+        run: bash "$RUNNER_TEMP/esteira/gate/integrity.sh" "$BASE_SHA" "$HEAD_SHA"
+
   php:
     name: php
     needs: config
@@ -360,7 +398,7 @@ jobs:
 
   ci-ok:
     name: ci-ok
-    needs: [config, security, php, spec, image]
+    needs: [config, security, integrity, php, spec, image]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -371,13 +409,15 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
           SPEC_ENABLED: ${{ needs.config.outputs.spec-enabled }}
           HAS_IMAGE: ${{ needs.config.outputs.has-image }}
+          INTEGRITY: ${{ github.event_name == 'pull_request' && github.repository != 'ozea-labs/esteira' }}
         run: |
           failed=0
-          for job in config security php spec image; do
+          for job in config security integrity php spec image; do
             result="$(jq -r --arg j "$job" '.[$j].result' <<<"$NEEDS")"
             expected=success
             if [ "$job" = spec ] && [ "$SPEC_ENABLED" != "true" ]; then expected=skipped; fi
             if [ "$job" = image ] && [ "$HAS_IMAGE" != "true" ]; then expected=skipped; fi
+            if [ "$job" = integrity ] && [ "$INTEGRITY" != "true" ]; then expected=skipped; fi
             if [ "$result" != "$expected" ]; then
               echo "::error::$job terminou como $result (esperado $expected)"
               failed=1
