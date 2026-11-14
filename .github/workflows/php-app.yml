@@ -298,6 +298,7 @@ jobs:
             echo "dockerfile=$IMAGE_DOCKERFILE"
             echo "context=$IMAGE_CONTEXT"
             echo "target=$IMAGE_TARGET"
+            echo "smoke-report=${IMAGE_SMOKE_REPORT:-}"
           } >> "$GITHUB_OUTPUT"
       - name: Hadolint
         run: bash "$RUNNER_TEMP/esteira/gate/image.sh" "$GITHUB_WORKSPACE/$CONFIG_FILE" lint
@@ -322,6 +323,14 @@ jobs:
         run: bash "$RUNNER_TEMP/esteira/gate/image.sh" "$GITHUB_WORKSPACE/$CONFIG_FILE" smoke
       - name: Trivy e SBOM
         run: bash "$RUNNER_TEMP/esteira/gate/image.sh" "$GITHUB_WORKSPACE/$CONFIG_FILE" scan
+      - name: Relatório do smoke
+        if: always() && steps.img.outputs.smoke-report != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: smoke-report
+          path: ${{ inputs.working-directory }}/${{ steps.img.outputs.smoke-report }}
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Arquivo da imagem (o que será publicado)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

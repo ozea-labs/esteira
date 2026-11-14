@@ -5,17 +5,20 @@
 source "$(dirname "$0")/lib.sh"
 load_config "${1:?uso: php.sh <arquivo de configuração>}"
 
-run() { step "$1"; shift; bash -c "$*"; endstep; }
+run() { step "$1"; bash -c "$2"; endstep; }
+# PHP_TEST_ENV vale para o comando inteiro, inclusive depois de && (ex.: database:create && migrate).
+# shellcheck disable=SC2086
+run_test_env() { step "$1"; env ${PHP_TEST_ENV:-} bash -c "$2"; endstep; }
 
-run "composer validate" composer validate --strict
-run "composer install" composer install --prefer-dist --no-progress --no-interaction
-run "composer audit" composer audit --locked --format=plain --abandoned=ignore
+run "composer validate" "composer validate --strict"
+run "composer install" "composer install --prefer-dist --no-progress --no-interaction"
+run "composer audit" "composer audit --locked --format=plain --abandoned=ignore"
 run "Estilo" "$PHP_CS_CMD"
 run "Análise estática" "$PHP_STAN_CMD"
 if [ -n "${PHP_DB_PREPARE:-}" ]; then
-  run "Banco de teste" "${PHP_TEST_ENV:+env $PHP_TEST_ENV }$PHP_DB_PREPARE"
+  run_test_env "Banco de teste" "$PHP_DB_PREPARE"
 fi
 mkdir -p build/logs
-run "Testes" "${PHP_TEST_ENV:+env $PHP_TEST_ENV }$PHP_TEST_CMD"
+run_test_env "Testes" "$PHP_TEST_CMD"
 
 echo "php: verde"

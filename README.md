@@ -88,7 +88,8 @@ IMAGE_SMOKE=scripts/quality/image-smoke.sh
 
 Chaves: `PHP_VERSION`, `PHP_EXTENSIONS`, `PHP_COVERAGE` (`pcov`, `xdebug`, `none`), `POSTGRES_VERSION`,
 `PHP_CS_CMD`, `PHP_STAN_CMD`, `PHP_TEST_CMD`, `PHP_DB_PREPARE`, `PHP_TEST_ENV`, `SPEC_ENABLED`, `SPEC_PHPUNIT_CMD`,
-`SPEC_PREPARE_CMD`, `IMAGE_NAME`, `IMAGE_DOCKERFILE`, `IMAGE_CONTEXT`, `IMAGE_TARGET`, `IMAGE_SMOKE`,
+`SPEC_PREPARE_CMD`, `IMAGE_NAME`, `IMAGE_DOCKERFILE`, `IMAGE_CONTEXT`, `IMAGE_TARGET`, `IMAGE_SMOKE`, `IMAGE_SMOKE_REPORT` (diretório
+publicado como artefato `smoke-report`, mesmo quando o smoke falha),
 `GITLEAKS_CONFIG`, `SEMGREP_EXCLUDES`. No CI, `DATABASE_URL` aponta para o Postgres de serviço.
 
 ### Lockfile de actions
