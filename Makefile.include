@@ -1,0 +1,28 @@
+# Alvo `gate` da esteira para os consumidores. No Makefile do consumidor:
+#
+#   ESTEIRA_SHA := $(shell sed -nE 's|.*ozea-labs/esteira/\.github/workflows/php-app\.yml@([0-9a-f]{40}).*|\1|p' .github/workflows/gate.yml | head -1)
+#   ESTEIRA_DIR := .cache/esteira/$(ESTEIRA_SHA)
+#   $(ESTEIRA_DIR)/Makefile.include:
+#   	mkdir -p $(ESTEIRA_DIR) && curl -fsSL https://codeload.github.com/ozea-labs/esteira/tar.gz/$(ESTEIRA_SHA) | tar -xz --strip-components=1 -C $(ESTEIRA_DIR)
+#   include $(ESTEIRA_DIR)/Makefile.include
+#
+# O SHA vem do arquivo de chamada do CI, então máquina e CI rodam a mesma versão.
+ESTEIRA_CONFIG ?= .github/esteira.env
+ESTEIRA_PHP_RUNNER ?=
+
+.PHONY: gate gate-security gate-php gate-spec gate-image
+
+gate: ## Portão completo da esteira, igual ao CI
+	ESTEIRA_PHP_RUNNER="$(ESTEIRA_PHP_RUNNER)" bash $(ESTEIRA_DIR)/gate/run.sh $(ESTEIRA_CONFIG)
+
+gate-security: ## Só a etapa de segurança da esteira
+	bash $(ESTEIRA_DIR)/gate/run.sh $(ESTEIRA_CONFIG) security
+
+gate-php: ## Só a etapa PHP da esteira
+	ESTEIRA_PHP_RUNNER="$(ESTEIRA_PHP_RUNNER)" bash $(ESTEIRA_DIR)/gate/run.sh $(ESTEIRA_CONFIG) php
+
+gate-spec: ## Só a etapa de spec da esteira
+	ESTEIRA_PHP_RUNNER="$(ESTEIRA_PHP_RUNNER)" bash $(ESTEIRA_DIR)/gate/run.sh $(ESTEIRA_CONFIG) spec
+
+gate-image: ## Só a etapa de imagem da esteira
+	bash $(ESTEIRA_DIR)/gate/run.sh $(ESTEIRA_CONFIG) image

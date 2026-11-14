@@ -1,0 +1,365 @@
+name: esteira-php-app
+
+# Portão de uma aplicação PHP. O consumidor chama este workflow por SHA, num job chamado `gate`,
+# e exige o check `gate / ci-ok`. Os passos estão em gate/*.sh, os mesmos que o `make gate` roda.
+#
+#   jobs:
+#     gate:
+#       permissions:
+#         contents: read
+#       uses: ozea-labs/esteira/.github/workflows/php-app.yml@<sha> # vX.Y.Z
+#       with:
+#         esteira-sha: <o mesmo sha>
+
+on:
+  workflow_call:
+    inputs:
+      esteira-sha:
+        description: SHA da esteira; precisa ser o mesmo da linha `uses:` (o portão confere).
+        required: true
+        type: string
+      config-file:
+        description: Configuração do consumidor, relativa à raiz do repositório.
+        required: false
+        type: string
+        default: .github/esteira.env
+      working-directory:
+        description: Diretório do projeto PHP, relativo à raiz do repositório.
+        required: false
+        type: string
+        default: .
+    outputs:
+      has-image:
+        description: true quando o consumidor configurou IMAGE_TARGET (a imagem foi construída e escaneada).
+        value: ${{ jobs.config.outputs.has-image }}
+      image-name:
+        description: IMAGE_NAME do consumidor.
+        value: ${{ jobs.config.outputs.image-name }}
+      image-digest:
+        description: Digest do manifest construído e escaneado neste run.
+        value: ${{ jobs.image.outputs.digest }}
+
+permissions: {}
+
+env:
+  ESTEIRA_SHA: ${{ inputs.esteira-sha }}
+  CONFIG_FILE: ${{ inputs.config-file }}
+
+jobs:
+  config:
+    name: config
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      php-version: ${{ steps.cfg.outputs.php-version }}
+      php-extensions: ${{ steps.cfg.outputs.php-extensions }}
+      php-coverage: ${{ steps.cfg.outputs.php-coverage }}
+      postgres-image: ${{ steps.cfg.outputs.postgres-image }}
+      postgres-version: ${{ steps.cfg.outputs.postgres-version }}
+      spec-enabled: ${{ steps.cfg.outputs.spec-enabled }}
+      has-image: ${{ steps.cfg.outputs.has-image }}
+      image-name: ${{ steps.cfg.outputs.image-name }}
+    steps:
+      - name: Esteira
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: ozea-labs/esteira
+          ref: ${{ inputs.esteira-sha }}
+          path: .esteira
+          persist-credentials: false
+      - name: Consumidor
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          path: app
+          persist-credentials: false
+      - name: Lê a configuração
+        id: cfg
+        working-directory: app
+        run: |
+          [[ "$ESTEIRA_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::esteira-sha precisa ser um SHA de 40 caracteres"; exit 1; }
+          bash ../.esteira/gate/config.sh "$CONFIG_FILE"
+
+  security:
+    name: security
+    needs: config
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Consumidor
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Esteira
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: ozea-labs/esteira
+          ref: ${{ inputs.esteira-sha }}
+          path: .esteira
+          persist-credentials: false
+      - name: Tira a esteira do workspace
+        run: mv .esteira "$RUNNER_TEMP/esteira"
+      - name: Extensão gh-actions-lock
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # shellcheck source=/dev/null
+          . "$RUNNER_TEMP/esteira/gate/versions.env"
+          gh extension install github/gh-actions-lock --pin "$GH_ACTIONS_LOCK_VERSION"
+      - name: Portão de segurança
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/esteira/gate/security.sh" "$CONFIG_FILE"
+
+  php:
+    name: php
+    needs: config
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    services:
+      postgres:
+        # Vazio quando o consumidor não usa banco: o serviço não sobe.
+        image: ${{ needs.config.outputs.postgres-image }}
+        env:
+          POSTGRES_DB: app
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://app:app@127.0.0.1:5432/app?serverVersion=${{ needs.config.outputs.postgres-version }}&charset=utf8
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Consumidor
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Esteira
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: ozea-labs/esteira
+          ref: ${{ inputs.esteira-sha }}
+          path: .esteira
+          persist-credentials: false
+      - name: Tira a esteira do workspace
+        working-directory: .
+        run: mv .esteira "$RUNNER_TEMP/esteira"
+      - name: PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: ${{ needs.config.outputs.php-version }}
+          extensions: ${{ needs.config.outputs.php-extensions }}
+          coverage: ${{ needs.config.outputs.php-coverage }}
+          tools: composer:v2
+      - name: Cache do Composer
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ inputs.working-directory }}/vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles(format('{0}/composer.lock', inputs.working-directory)) }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+      - name: Portão PHP
+        run: bash "$RUNNER_TEMP/esteira/gate/php.sh" "$GITHUB_WORKSPACE/$CONFIG_FILE"
+      - name: Cobertura
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage
+          path: ${{ inputs.working-directory }}/build/logs/clover.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
+  spec:
+    name: spec
+    needs: config
+    if: needs.config.outputs.spec-enabled == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: ${{ needs.config.outputs.postgres-image }}
+        env:
+          POSTGRES_DB: app
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://app:app@127.0.0.1:5432/app?serverVersion=${{ needs.config.outputs.postgres-version }}&charset=utf8
+      OPENSPEC_TELEMETRY: "0"
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Consumidor (head do PR, histórico completo)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # A integridade lê o histórico do PR (commit da trava), então usa o head do PR, não o merge sintético.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Esteira
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: ozea-labs/esteira
+          ref: ${{ inputs.esteira-sha }}
+          path: .esteira
+          persist-credentials: false
+      - name: Tira a esteira do workspace
+        working-directory: .
+        run: mv .esteira "$RUNNER_TEMP/esteira"
+      - name: PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: ${{ needs.config.outputs.php-version }}
+          extensions: ${{ needs.config.outputs.php-extensions }}
+          coverage: none
+          tools: composer:v2
+      - name: Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22"
+      - name: Cache do Composer
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ inputs.working-directory }}/vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles(format('{0}/composer.lock', inputs.working-directory)) }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+      - name: Portão de spec
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: bash "$RUNNER_TEMP/esteira/gate/spec.sh" "$GITHUB_WORKSPACE/$CONFIG_FILE" "${BASE_SHA:-HEAD}"
+      - name: Evidência de conformidade
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: spec-conformance
+          path: ${{ inputs.working-directory }}/build/spec/conformance.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+  image:
+    name: image
+    needs: config
+    if: needs.config.outputs.has-image == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      digest: ${{ steps.digest.outputs.digest }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    env:
+      ESTEIRA_IMAGE_OUT: build/esteira-image
+    steps:
+      - name: Consumidor
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Esteira
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: ozea-labs/esteira
+          ref: ${{ inputs.esteira-sha }}
+          path: .esteira
+          persist-credentials: false
+      - name: Tira a esteira do workspace
+        working-directory: .
+        run: mv .esteira "$RUNNER_TEMP/esteira"
+      - name: Lê alvo e Dockerfile
+        id: img
+        run: |
+          # shellcheck source=/dev/null
+          . "$RUNNER_TEMP/esteira/gate/lib.sh"
+          load_config "$GITHUB_WORKSPACE/$CONFIG_FILE"
+          {
+            echo "dockerfile=$IMAGE_DOCKERFILE"
+            echo "context=$IMAGE_CONTEXT"
+            echo "target=$IMAGE_TARGET"
+          } >> "$GITHUB_OUTPUT"
+      - name: Hadolint
+        run: bash "$RUNNER_TEMP/esteira/gate/image.sh" "$GITHUB_WORKSPACE/$CONFIG_FILE" lint
+      - name: Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - name: Build único em arquivo OCI
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: ${{ inputs.working-directory }}/${{ steps.img.outputs.context }}
+          file: ${{ inputs.working-directory }}/${{ steps.img.outputs.dockerfile }}
+          target: ${{ steps.img.outputs.target }}
+          push: false
+          provenance: false
+          sbom: false
+          outputs: type=oci,dest=${{ inputs.working-directory }}/build/esteira-image/image.tar,name=esteira-candidate:local
+          cache-from: type=gha,scope=esteira-${{ github.repository }}
+          cache-to: type=gha,mode=max,scope=esteira-${{ github.repository }}
+      - name: Digest
+        id: digest
+        run: echo "digest=$(bash "$RUNNER_TEMP/esteira/gate/image.sh" "$GITHUB_WORKSPACE/$CONFIG_FILE" digest)" >> "$GITHUB_OUTPUT"
+      - name: Smoke
+        run: bash "$RUNNER_TEMP/esteira/gate/image.sh" "$GITHUB_WORKSPACE/$CONFIG_FILE" smoke
+      - name: Trivy e SBOM
+        run: bash "$RUNNER_TEMP/esteira/gate/image.sh" "$GITHUB_WORKSPACE/$CONFIG_FILE" scan
+      - name: Arquivo da imagem (o que será publicado)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: esteira-image
+          path: ${{ inputs.working-directory }}/build/esteira-image/image.tar
+          retention-days: 3
+      - name: SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sbom
+          path: ${{ inputs.working-directory }}/build/esteira-image/sbom.cdx.json
+          retention-days: 14
+
+  ci-ok:
+    name: ci-ok
+    needs: [config, security, php, spec, image]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Todos os portões verdes
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          SPEC_ENABLED: ${{ needs.config.outputs.spec-enabled }}
+          HAS_IMAGE: ${{ needs.config.outputs.has-image }}
+        run: |
+          failed=0
+          for job in config security php spec image; do
+            result="$(jq -r --arg j "$job" '.[$j].result' <<<"$NEEDS")"
+            expected=success
+            if [ "$job" = spec ] && [ "$SPEC_ENABLED" != "true" ]; then expected=skipped; fi
+            if [ "$job" = image ] && [ "$HAS_IMAGE" != "true" ]; then expected=skipped; fi
+            if [ "$result" != "$expected" ]; then
+              echo "::error::$job terminou como $result (esperado $expected)"
+              failed=1
+            else
+              echo "$job: $result"
+            fi
+          done
+          exit "$failed"

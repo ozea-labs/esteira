@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<testSuite xmlns="https://xml.phpunit.de/testSuite">
+ <tests>
+  <testClass name="App\Tests\Acceptance\Probe\ProbeTest" file="/repo/tests/Acceptance/Probe/ProbeTest.php">
+   <testMethod id="App\Tests\Acceptance\Probe\ProbeTest::passes" name="passes"/>
+   <testMethod id="App\Tests\Acceptance\Probe\ProbeTest::fails" name="fails"/>
+   <testMethod id="App\Tests\Acceptance\Probe\ProbeTest::skips" name="skips"/>
+   <testMethod id="App\Tests\Acceptance\Probe\ProbeTest::provided#0" name="provided"/>
+   <testMethod id="App\Tests\Acceptance\Probe\ProbeTest::provided#1" name="provided"/>
+  </testClass>
+ </tests>
+ <groups>
+  <group name="scenario:RCV-DEMO-001">
+   <test id="App\Tests\Acceptance\Probe\ProbeTest::passes"/>
+  </group>
+  <group name="scenario:RCV-DEMO-002">
+   <test id="App\Tests\Acceptance\Probe\ProbeTest::fails"/>
+  </group>
+  <group name="scenario:RCV-DEMO-003">
+   <test id="App\Tests\Acceptance\Probe\ProbeTest::skips"/>
+  </group>
+  <group name="scenario:RCV-DEMO-004">
+   <test id="App\Tests\Acceptance\Probe\ProbeTest::provided#0"/>
+   <test id="App\Tests\Acceptance\Probe\ProbeTest::provided#1"/>
+  </group>
+ </groups>
+</testSuite>

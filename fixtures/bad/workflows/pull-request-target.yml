@@ -1,0 +1,8 @@
+name: bad-prt
+on: pull_request_target
+permissions: {}
+jobs:
+  x:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo hi

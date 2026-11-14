@@ -1,0 +1,9 @@
+name: bad-continue-on-error
+on: push
+permissions: {}
+jobs:
+  x:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: exit 1
+        continue-on-error: true

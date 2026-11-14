@@ -1,0 +1,14 @@
+name: bad-esteira-mixed
+on: push
+permissions: {}
+jobs:
+  a:
+    uses: ozea-labs/esteira/.github/workflows/php-app.yml@1111111111111111111111111111111111111111
+    with:
+      esteira-sha: "1111111111111111111111111111111111111111"
+  b:
+    uses: ozea-labs/esteira/.github/workflows/publish.yml@2222222222222222222222222222222222222222
+    with:
+      esteira-sha: "2222222222222222222222222222222222222222"
+      image-name: ghcr.io/ozea-labs/x
+      image-digest: sha256:0

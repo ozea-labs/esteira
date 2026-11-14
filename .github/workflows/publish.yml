@@ -1,0 +1,60 @@
+name: esteira-publish
+
+# Publica no GHCR o arquivo OCI que o php-app.yml construiu e escaneou neste mesmo run.
+# O consumidor chama só em push na branch padrão, depois do `gate`:
+#
+#   publish:
+#     needs: gate
+#     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.gate.outputs.has-image == 'true'
+#     permissions:
+#       contents: read
+#       packages: write
+#     uses: ozea-labs/esteira/.github/workflows/publish.yml@<sha> # vX.Y.Z
+#     with:
+#       esteira-sha: <o mesmo sha>
+#       image-name: ${{ needs.gate.outputs.image-name }}
+#       image-digest: ${{ needs.gate.outputs.image-digest }}
+
+on:
+  workflow_call:
+    inputs:
+      esteira-sha:
+        required: true
+        type: string
+      image-name:
+        required: true
+        type: string
+      image-digest:
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  publish:
+    name: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Esteira
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: ozea-labs/esteira
+          ref: ${{ inputs.esteira-sha }}
+          path: esteira
+          persist-credentials: false
+      - name: Arquivo da imagem escaneada
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: esteira-image
+          path: image
+      - name: Publica e confere o digest
+        env:
+          IMAGE_NAME: ${{ inputs.image-name }}
+          IMAGE_DIGEST: ${{ inputs.image-digest }}
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_PASSWORD: ${{ github.token }}
+        run: bash esteira/gate/publish.sh image/image.tar "$IMAGE_NAME" "$IMAGE_DIGEST" "$GITHUB_SHA"

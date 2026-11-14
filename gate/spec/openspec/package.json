@@ -1,0 +1,8 @@
+{
+  "name": "esteira-openspec",
+  "private": true,
+  "description": "Pinned OpenSpec CLI for the spec-driven factory (OPS-67, movido para a esteira no OPS-88).",
+  "dependencies": {
+    "@fission-ai/openspec": "2.0.0"
+  }
+}
